@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DerivBot — Trading Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<header>
+  <div class="logo">DERIV<span>BOT</span></div>
+  <div class="ticker-bar">
+    <div class="ticker-inner" id="tickerInner">
+      <span class="tick" id="tick-V75">V75 ──</span>
+      <span class="tick" id="tick-V100">V100 ──</span>
+      <span class="tick" id="tick-BOOM">Boom 1000 ──</span>
+      <span class="tick" id="tick-CRASH">Crash 1000 ──</span>
+      <span class="tick" id="tick-STEP">Step Index ──</span>
+      <span class="tick" id="tick-RBREAK">Range Break ──</span>
+      <span class="tick" id="tick-V75b">V75 ──</span>
+      <span class="tick" id="tick-V100b">V100 ──</span>
+      <span class="tick" id="tick-BOOMb">Boom 1000 ──</span>
+      <span class="tick" id="tick-CRASHb">Crash 1000 ──</span>
+      <span class="tick" id="tick-STEPb">Step Index ──</span>
+      <span class="tick" id="tick-RBREAKb">Range Break ──</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="api-token-wrap">
+      <input type="password" id="apiTokenInput" placeholder="Deriv API Token"/>
+      <button id="connectBtn" onclick="connectDeriv()">Connect</button>
+    </div>
+    <div class="conn-status">
+      <span class="dot disconnected" id="connDot"></span>
+      <span id="connLabel">Disconnected</span>
+    </div>
+  </div>
+</header>
+
+<!-- KILL SWITCH -->
+<div class="killswitch-bar">
+  <span>⚡ GLOBAL KILL</span>
+  <button class="kill-btn" onclick="killAllBots()">STOP ALL BOTS</button>
+  <div class="kill-stats">
+    <span>Active: <b id="activeBotCount">0</b></span>
+    <span>Trades: <b id="totalTrades">0</b></span>
+    <span>P&L: <b id="totalPnl">$0.00</b></span>
+    <span>WR: <b id="avgWinRate">0%</b></span>
+  </div>
+</div>
+
+<!-- WATCHLIST -->
+<div id="watchlistPanel" style="padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border)">
+  <div id="watchlistUI"></div>
+</div>
+
+<!-- NAV -->
+<nav class="main-nav">
+  <button class="nav-btn active" onclick="showTab('bots')">⚡ Bots</button>
+  <button class="nav-btn" onclick="showTab('analysis')">📊 Analysis</button>
+</nav>
+
+<!-- BOTS TAB -->
+<div id="tab-bots" class="tab-content active">
+
+  <!-- MARTINGALE PRO -->
+  <div class="bot-card" id="card-martingale">
+    <div class="bot-header">
+      <div class="bot-icon">🤖</div>
+      <div class="bot-info">
+        <div class="bot-name">Martingale Pro</div>
+        <div class="bot-desc">Recovery system · All contract types · Auto market switch</div>
+      </div>
+      <div class="bot-badge stopped" id="badge-martingale">Stopped</div>
+    </div>
+    <div class="bot-stats">
+      <div class="stat"><span class="stat-val" id="mg-trades">0</span><span class="stat-lbl">Trades</span></div>
+      <div class="stat"><span class="stat-val green" id="mg-winrate">0%</span><span class="stat-lbl">Win Rate</span></div>
+      <div class="stat"><span class="stat-val green" id="mg-profit">$0.00</span><span class="stat-lbl">Profit</span></div>
+      <div class="stat"><span class="stat-val" id="mg-streak">0</span><span class="stat-lbl">Streak</span></div>
+    </div>
+    <div class="tick-speed-bar">
+      <span class="tick-speed-lbl">Tick Speed:</span>
+      <span class="tick-speed-val" id="mg-tickspeed">-- ms</span>
+    </div>
+    <div id="trade-mode-martingale"></div>
+    <canvas class="bot-chart" id="chart-martingale" height="50"></canvas>
+    <div class="bot-controls">
+      <button class="btn-run" id="run-martingale" onclick="toggleBot('martingale')">▶ Run</button>
+      <button class="btn-settings" onclick="toggleSettings('martingale')">⚙ Settings</button>
+      <button class="btn-stats" onclick="showTab('analysis')">📊 Stats</button>
+    </div>
+    <div class="settings-panel" id="settings-martingale">
+      <div id="trade-selector-martingale"></div>
+      <div class="settings-grid">
+        <div class="setting-group"><label>Market</label>
+          <select id="mg-market">
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+            <option value="R_10">Volatility 10</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="BOOM1000">Boom 1000</option>
+            <option value="BOOM500">Boom 500</option>
+            <option value="CRASH1000">Crash 1000</option>
+            <option value="CRASH500">Crash 500</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="JD75">Jump 75</option>
+            <option value="JD100">Jump 100</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Contract Type</label>
+          <select id="mg-contract-family">
+            <option value="RISE_FALL">Rise / Fall</option>
+            <option value="MATCHES">Matches / Differs</option>
+            <option value="EVEN_ODD">Even / Odd</option>
+            <option value="OVER_UNDER">Over / Under</option>
+            <option value="TOUCH">Touch / No Touch</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Initial Stake ($)</label>
+          <input type="number" id="mg-stake" value="1" min="0.35" step="0.01"/>
+        </div>
+        <div class="setting-group"><label>Multiplier on Loss</label>
+          <input type="number" id="mg-multiplier" value="2.1" min="1.5" max="4" step="0.1"/>
+        </div>
+        <div class="setting-group"><label>Duration (ticks)</label>
+          <input type="number" id="mg-duration" value="5" min="1" max="10"/>
+        </div>
+        <div class="setting-group"><label>Max Stake Cap ($)</label>
+          <input type="number" id="mg-maxstake" value="50" min="1"/>
+        </div>
+        <div class="setting-group"><label>Take Profit ($)</label>
+          <input type="number" id="mg-takeprofit" value="20" min="1"/>
+        </div>
+        <div class="setting-group"><label>Stop Loss ($)</label>
+          <input type="number" id="mg-stoploss" value="15" min="1"/>
+        </div>
+        <div class="setting-group"><label>Max Loss Streak</label>
+          <input type="number" id="mg-maxstreak" value="5" min="2" max="10"/>
+        </div>
+        <div class="setting-group"><label>Recovery Mode</label>
+          <select id="mg-recovery">
+            <option value="double">Double</option>
+            <option value="fibonacci">Fibonacci</option>
+            <option value="custom">Custom Multiplier</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Min Signal Confidence %</label>
+          <input type="number" id="mg-confidence" value="60" min="50" max="95"/>
+        </div>
+        <div class="setting-group"><label>Auto Market Switch</label>
+          <select id="mg-autoswitch">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="strategy-note">
+        <b>Strategy:</b> On loss multiplies stake by recovery mode. RSI + EMA signals
+        pick contract direction. Scanner scores all watchlist markets every 30 ticks —
+        auto switches to highest scoring market. Fibonacci uses 1→1→2→3→5→8 sequence.
+      </div>
+    </div>
+  </div>
+
+  <!-- RSI SCALPER -->
+  <div class="bot-card" id="card-rsi">
+    <div class="bot-header">
+      <div class="bot-icon">⚡</div>
+      <div class="bot-info">
+        <div class="bot-name">RSI Scalper</div>
+        <div class="bot-desc">RSI signals · Tick confirmation · Dynamic sizing · All markets</div>
+      </div>
+      <div class="bot-badge stopped" id="badge-rsi">Stopped</div>
+    </div>
+    <div class="bot-stats">
+      <div class="stat"><span class="stat-val" id="rsi-trades">0</span><span class="stat-lbl">Trades</span></div>
+      <div class="stat"><span class="stat-val green" id="rsi-winrate">0%</span><span class="stat-lbl">Win Rate</span></div>
+      <div class="stat"><span class="stat-val green" id="rsi-profit">$0.00</span><span class="stat-lbl">Profit</span></div>
+      <div class="stat"><span class="stat-val blue" id="rsi-rsivalue">--</span><span class="stat-lbl">RSI</span></div>
+    </div>
+    <div class="tick-speed-bar">
+      <span class="tick-speed-lbl">Tick Speed:</span>
+      <span class="tick-speed-val" id="rsi-tickspeed">-- ms</span>
+    </div>
+    <div id="trade-mode-rsi"></div>
+    <canvas class="bot-chart" id="chart-rsi" height="50"></canvas>
+    <div class="bot-controls">
+      <button class="btn-run" id="run-rsi" onclick="toggleBot('rsi')">▶ Run</button>
+      <button class="btn-settings" onclick="toggleSettings('rsi')">⚙ Settings</button>
+      <button class="btn-stats" onclick="showTab('analysis')">📊 Stats</button>
+    </div>
+    <div class="settings-panel" id="settings-rsi">
+      <div id="trade-selector-rsi"></div>
+      <div class="settings-grid">
+        <div class="setting-group"><label>Market</label>
+          <select id="rsi-market">
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="BOOM1000">Boom 1000</option>
+            <option value="CRASH1000">Crash 1000</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="JD75">Jump 75</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Contract Type</label>
+          <select id="rsi-contract-family">
+            <option value="RISE_FALL">Rise / Fall</option>
+            <option value="MATCHES">Matches / Differs</option>
+            <option value="EVEN_ODD">Even / Odd</option>
+            <option value="OVER_UNDER">Over / Under</option>
+            <option value="TOUCH">Touch / No Touch</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>RSI Period</label>
+          <input type="number" id="rsi-period" value="14" min="5" max="50"/>
+        </div>
+        <div class="setting-group"><label>Oversold Level</label>
+          <input type="number" id="rsi-oversold" value="30" min="10" max="45"/>
+        </div>
+        <div class="setting-group"><label>Overbought Level</label>
+          <input type="number" id="rsi-overbought" value="70" min="55" max="90"/>
+        </div>
+        <div class="setting-group"><label>Stake ($)</label>
+          <input type="number" id="rsi-stake" value="1" min="0.35" step="0.01"/>
+        </div>
+        <div class="setting-group"><label>Duration (ticks)</label>
+          <input type="number" id="rsi-duration" value="3" min="1" max="10"/>
+        </div>
+        <div class="setting-group"><label>Take Profit ($)</label>
+          <input type="number" id="rsi-takeprofit" value="15" min="1"/>
+        </div>
+        <div class="setting-group"><label>Stop Loss ($)</label>
+          <input type="number" id="rsi-stoploss" value="10" min="1"/>
+        </div>
+        <div class="setting-group"><label>Confirmation Ticks</label>
+          <input type="number" id="rsi-confirm" value="2" min="1" max="5"/>
+        </div>
+        <div class="setting-group"><label>Dynamic Sizing</label>
+          <select id="rsi-dynamic">
+            <option value="fixed">Fixed Stake</option>
+            <option value="rsi">Scale by RSI Strength</option>
+            <option value="winrate">Scale by Win Rate</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Min Signal Confidence %</label>
+          <input type="number" id="rsi-confidence" value="60" min="50" max="95"/>
+        </div>
+        <div class="setting-group"><label>Auto Market Switch</label>
+          <select id="rsi-autoswitch">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="strategy-note">
+        <b>Strategy:</b> RSI below oversold → CALL. RSI above overbought → PUT.
+        Waits for N confirmation ticks. Dynamic sizing scales stake by signal strength.
+        Auto switches to best scoring market every 40 ticks.
+      </div>
+    </div>
+  </div>
+
+  <!-- TREND FOLLOWER -->
+  <div class="bot-card" id="card-trend">
+    <div class="bot-header">
+      <div class="bot-icon">📈</div>
+      <div class="bot-info">
+        <div class="bot-name">Trend Follower</div>
+        <div class="bot-desc">EMA crossover · ADX filter · Bollinger breakout · All contracts</div>
+      </div>
+      <div class="bot-badge stopped" id="badge-trend">Stopped</div>
+    </div>
+    <div class="bot-stats">
+      <div class="stat"><span class="stat-val" id="tr-trades">0</span><span class="stat-lbl">Trades</span></div>
+      <div class="stat"><span class="stat-val green" id="tr-winrate">0%</span><span class="stat-lbl">Win Rate</span></div>
+      <div class="stat"><span class="stat-val green" id="tr-profit">$0.00</span><span class="stat-lbl">Profit</span></div>
+      <div class="stat"><span class="stat-val blue" id="tr-trend">--</span><span class="stat-lbl">Trend</span></div>
+    </div>
+    <div class="tick-speed-bar">
+      <span class="tick-speed-lbl">Tick Speed:</span>
+      <span class="tick-speed-val" id="tr-tickspeed">-- ms</span>
+    </div>
+    <div id="trade-mode-trend"></div>
+    <canvas class="bot-chart" id="chart-trend" height="50"></canvas>
+    <div class="bot-controls">
+      <button class="btn-run" id="run-trend" onclick="toggleBot('trend')">▶ Run</button>
+      <button class="btn-settings" onclick="toggleSettings('trend')">⚙ Settings</button>
+      <button class="btn-stats" onclick="showTab('analysis')">📊 Stats</button>
+    </div>
+    <div class="settings-panel" id="settings-trend">
+      <div id="trade-selector-trend"></div>
+      <div class="settings-grid">
+        <div class="setting-group"><label>Market</label>
+          <select id="tr-market">
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="BOOM1000">Boom 1000</option>
+            <option value="CRASH1000">Crash 1000</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="JD75">Jump 75</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Contract Type</label>
+          <select id="tr-contract-family">
+            <option value="RISE_FALL">Rise / Fall</option>
+            <option value="MATCHES">Matches / Differs</option>
+            <option value="EVEN_ODD">Even / Odd</option>
+            <option value="OVER_UNDER">Over / Under</option>
+            <option value="TOUCH">Touch / No Touch</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Fast EMA Period</label>
+          <input type="number" id="tr-ema-fast" value="9" min="3" max="20"/>
+        </div>
+        <div class="setting-group"><label>Slow EMA Period</label>
+          <input type="number" id="tr-ema-slow" value="21" min="10" max="100"/>
+        </div>
+        <div class="setting-group"><label>Min ADX Strength</label>
+          <input type="number" id="tr-adx" value="25" min="15" max="50"/>
+        </div>
+        <div class="setting-group"><label>Stake ($)</label>
+          <input type="number" id="tr-stake" value="1" min="0.35" step="0.01"/>
+        </div>
+        <div class="setting-group"><label>Duration (ticks)</label>
+          <input type="number" id="tr-duration" value="10" min="1" max="20"/>
+        </div>
+        <div class="setting-group"><label>Take Profit ($)</label>
+          <input type="number" id="tr-takeprofit" value="25" min="1"/>
+        </div>
+        <div class="setting-group"><label>Stop Loss ($)</label>
+          <input type="number" id="tr-stoploss" value="15" min="1"/>
+        </div>
+        <div class="setting-group"><label>Breakout Filter</label>
+          <select id="tr-breakout">
+            <option value="off">Off</option>
+            <option value="on">On — Breakouts only</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Re-entry After Loss</label>
+          <select id="tr-reentry">
+            <option value="immediate">Immediate</option>
+            <option value="wait">Wait for new crossover</option>
+            <option value="cooldown">5-tick cooldown</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Min Signal Confidence %</label>
+          <input type="number" id="tr-confidence" value="60" min="50" max="95"/>
+        </div>
+        <div class="setting-group"><label>Auto Market Switch</label>
+          <select id="tr-autoswitch">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="strategy-note">
+        <b>Strategy:</b> Fast EMA crosses above slow → CALL. Below → PUT.
+        ADX ensures strong trend. Bollinger squeeze breakout filter.
+        Auto switches market every 50 ticks if better opportunity found.
+      </div>
+    </div>
+  </div>
+
+  <!-- NEWS BOT -->
+  <div class="bot-card" id="card-news">
+    <div class="bot-header">
+      <div class="bot-icon">📰</div>
+      <div class="bot-info">
+        <div class="bot-name">News Bot Alpha</div>
+        <div class="bot-desc">Spike detection · Fade or follow · Dynamic threshold · All contracts</div>
+      </div>
+      <div class="bot-badge stopped" id="badge-news">Stopped</div>
+    </div>
+    <div class="bot-stats">
+      <div class="stat"><span class="stat-val" id="nw-trades">0</span><span class="stat-lbl">Trades</span></div>
+      <div class="stat"><span class="stat-val green" id="nw-winrate">0%</span><span class="stat-lbl">Win Rate</span></div>
+      <div class="stat"><span class="stat-val green" id="nw-profit">$0.00</span><span class="stat-lbl">Profit</span></div>
+      <div class="stat"><span class="stat-val warn" id="nw-spikes">0</span><span class="stat-lbl">Spikes</span></div>
+    </div>
+    <div class="tick-speed-bar">
+      <span class="tick-speed-lbl">Tick Speed:</span>
+      <span class="tick-speed-val" id="nw-tickspeed">-- ms</span>
+    </div>
+    <div id="trade-mode-news"></div>
+    <canvas class="bot-chart" id="chart-news" height="50"></canvas>
+    <div class="bot-controls">
+      <button class="btn-run" id="run-news" onclick="toggleBot('news')">▶ Run</button>
+      <button class="btn-settings" onclick="toggleSettings('news')">⚙ Settings</button>
+      <button class="btn-stats" onclick="showTab('analysis')">📊 Stats</button>
+    </div>
+    <div class="settings-panel" id="settings-news">
+      <div id="trade-selector-news"></div>
+      <div class="settings-grid">
+        <div class="setting-group"><label>Market</label>
+          <select id="nw-market">
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+            <option value="BOOM1000">Boom 1000</option>
+            <option value="CRASH1000">Crash 1000</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="JD75">Jump 75</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Contract Type</label>
+          <select id="nw-contract-family">
+            <option value="RISE_FALL">Rise / Fall</option>
+            <option value="MATCHES">Matches / Differs</option>
+            <option value="EVEN_ODD">Even / Odd</option>
+            <option value="OVER_UNDER">Over / Under</option>
+            <option value="TOUCH">Touch / No Touch</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Spike Mode</label>
+          <select id="nw-mode">
+            <option value="fade">Fade the Spike</option>
+            <option value="follow">Follow the Spike</option>
+            <option value="both">Both (RSI decides)</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Spike Threshold (%)</label>
+          <input type="number" id="nw-threshold" value="0.3" min="0.05" max="2" step="0.05"/>
+        </div>
+        <div class="setting-group"><label>Entry Delay (ticks)</label>
+          <input type="number" id="nw-delay" value="2" min="0" max="10"/>
+        </div>
+        <div class="setting-group"><label>Stake ($)</label>
+          <input type="number" id="nw-stake" value="2" min="0.35" step="0.01"/>
+        </div>
+        <div class="setting-group"><label>Duration (ticks)</label>
+          <input type="number" id="nw-duration" value="5" min="1" max="15"/>
+        </div>
+        <div class="setting-group"><label>Take Profit ($)</label>
+          <input type="number" id="nw-takeprofit" value="20" min="1"/>
+        </div>
+        <div class="setting-group"><label>Stop Loss ($)</label>
+          <input type="number" id="nw-stoploss" value="12" min="1"/>
+        </div>
+        <div class="setting-group"><label>Max Spikes/Hour</label>
+          <input type="number" id="nw-maxspikes" value="10" min="1" max="30"/>
+        </div>
+        <div class="setting-group"><label>Cooldown After Trade</label>
+          <input type="number" id="nw-cooldown" value="5" min="0" max="30"/>
+        </div>
+        <div class="setting-group"><label>Min Signal Confidence %</label>
+          <input type="number" id="nw-confidence" value="60" min="50" max="95"/>
+        </div>
+        <div class="setting-group"><label>Auto Market Switch</label>
+          <select id="nw-autoswitch">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="strategy-note">
+        <b>Strategy:</b> Monitors every tick for abnormal moves vs rolling average.
+        Dynamic threshold = 3x average move. Fade: trades opposite of spike.
+        Follow: trades with spike. Delay entry N ticks after spike for confirmation.
+      </div>
+    </div>
+  </div>
+
+  <!-- VOLATILITY CRUSHER -->
+  <div class="bot-card" id="card-vcrusher">
+    <div class="bot-header">
+      <div class="bot-icon">💪</div>
+      <div class="bot-info">
+        <div class="bot-name">Volatility Crusher</div>
+        <div class="bot-desc">ATR bands · Digit patterns · Momentum burst · Kelly sizing</div>
+      </div>
+      <div class="bot-badge stopped" id="badge-vcrusher">Stopped</div>
+    </div>
+    <div class="bot-stats">
+      <div class="stat"><span class="stat-val" id="vc-trades">0</span><span class="stat-lbl">Trades</span></div>
+      <div class="stat"><span class="stat-val green" id="vc-winrate">0%</span><span class="stat-lbl">Win Rate</span></div>
+      <div class="stat"><span class="stat-val green" id="vc-profit">$0.00</span><span class="stat-lbl">Profit</span></div>
+      <div class="stat"><span class="stat-val blue" id="vc-atr">--</span><span class="stat-lbl">ATR</span></div>
+    </div>
+    <div class="tick-speed-bar">
+      <span class="tick-speed-lbl">Tick Speed:</span>
+      <span class="tick-speed-val" id="vc-tickspeed">-- ms</span>
+    </div>
+    <div id="trade-mode-vcrusher"></div>
+    <canvas class="bot-chart" id="chart-vcrusher" height="50"></canvas>
+    <div class="bot-controls">
+      <button class="btn-run" id="run-vcrusher" onclick="toggleBot('vcrusher')">▶ Run</button>
+      <button class="btn-settings" onclick="toggleSettings('vcrusher')">⚙ Settings</button>
+      <button class="btn-stats" onclick="showTab('analysis')">📊 Stats</button>
+    </div>
+    <div class="settings-panel" id="settings-vcrusher">
+      <div id="trade-selector-vcrusher"></div>
+      <div class="settings-grid">
+        <div class="setting-group"><label>Market</label>
+          <select id="vc-market">
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+            <option value="R_10">Volatility 10</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="BOOM1000">Boom 1000</option>
+            <option value="CRASH1000">Crash 1000</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="JD75">Jump 75</option>
+            <option value="JD100">Jump 100</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Contract Type</label>
+          <select id="vc-contract-family">
+            <option value="RISE_FALL">Rise / Fall</option>
+            <option value="MATCHES">Matches / Differs</option>
+            <option value="EVEN_ODD">Even / Odd</option>
+            <option value="OVER_UNDER">Over / Under</option>
+            <option value="TOUCH">Touch / No Touch</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Sub-Strategy</label>
+          <select id="vc-strategy">
+            <option value="atr">ATR Band Bounce</option>
+            <option value="digit">Digit Pattern</option>
+            <option value="momentum">Momentum Burst</option>
+            <option value="hybrid">Hybrid (2/3 vote)</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>ATR Period</label>
+          <input type="number" id="vc-atr-period" value="14" min="5" max="30"/>
+        </div>
+        <div class="setting-group"><label>ATR Band Multiplier</label>
+          <input type="number" id="vc-atr-mult" value="1.5" min="0.5" max="3" step="0.1"/>
+        </div>
+        <div class="setting-group"><label>Digit Pattern Length</label>
+          <input type="number" id="vc-digit-len" value="5" min="3" max="10"/>
+        </div>
+        <div class="setting-group"><label>Stake ($)</label>
+          <input type="number" id="vc-stake" value="1" min="0.35" step="0.01"/>
+        </div>
+        <div class="setting-group"><label>Duration (ticks)</label>
+          <input type="number" id="vc-duration" value="5" min="1" max="10"/>
+        </div>
+        <div class="setting-group"><label>Take Profit ($)</label>
+          <input type="number" id="vc-takeprofit" value="30" min="1"/>
+        </div>
+        <div class="setting-group"><label>Stop Loss ($)</label>
+          <input type="number" id="vc-stoploss" value="20" min="1"/>
+        </div>
+        <div class="setting-group"><label>Smart Sizing</label>
+          <select id="vc-smart">
+            <option value="off">Fixed</option>
+            <option value="atr">Scale by ATR</option>
+            <option value="kelly">Kelly Criterion</option>
+          </select>
+        </div>
+        <div class="setting-group"><label>Min Signal Confidence %</label>
+          <input type="number" id="vc-confidence" value="60" min="50" max="95"/>
+        </div>
+        <div class="setting-group"><label>Auto Market Switch</label>
+          <select id="vc-autoswitch">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="strategy-note">
+        <b>Strategy:</b> ATR Band: bounces from upper/lower bands.
+        Digit Pattern: frequency analysis of last digits — detects overdue/repeating patterns.
+        Momentum: 3+ consecutive same-direction ticks.
+        Hybrid: 2/3 signal vote required. Kelly Criterion auto-sizes stake.
+      </div>
+    </div>
+  </div>
+
+</div><!-- end bots tab -->
+<!-- ANALYSIS TAB -->
+<div id="tab-analysis" class="tab-content">
+<div class="analysis-header">
+<div class="wl-chart-container"><canvas id="wl-chart"></canvas></div>
+<div class="perf-comparison" id="perf-comparison"></div>
+</div>
+<div class="trade-log-container">
+<table class="trade-log">
+<thead><tr><th>Time</th><th>Bot</th><th>Market</th><th>Type</th><th>Stake</th><th>P/L</th><th>Result</th></tr></thead>
+<tbody id="trade-log-body"></tbody>
+</table>
+</div>
+</div>
+</body>
+</html>
