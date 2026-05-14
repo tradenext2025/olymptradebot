@@ -5,16 +5,17 @@ from telegram.ext import (
     CallbackQueryHandler, MessageHandler, filters
 )
 from config import TELEGRAM_TOKEN
-from handlers import start, help_cmd, status_cmd, signal_cmd, auto_cmd, button_handler
+from handlers import (
+    start, help_cmd, status_cmd,
+    signal_cmd, auto_cmd, stopauto_cmd, button_handler
+)
 from login_handler import show_login, ask_email, ask_password, receive_text, submit_login
 from signal_engine import start_engine
 from auto_trader import auto_signal_loop
-from websocket_client import start_websocket
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 async def post_init(app):
-    start_websocket()
     start_engine()
     asyncio.create_task(auto_signal_loop(app))
     print("Nexus OlympTrade Bot fully started!")
@@ -26,13 +27,14 @@ def run():
         .post_init(post_init)
         .build()
     )
-    app.add_handler(CommandHandler("start",  start))
-    app.add_handler(CommandHandler("help",   help_cmd))
-    app.add_handler(CommandHandler("status", status_cmd))
-    app.add_handler(CommandHandler("signal", signal_cmd))
-    app.add_handler(CommandHandler("auto",   auto_cmd))
-    app.add_handler(CommandHandler("login",  show_login))
-    app.add_handler(CommandHandler("menu",   start))
+    app.add_handler(CommandHandler("start",    start))
+    app.add_handler(CommandHandler("help",     help_cmd))
+    app.add_handler(CommandHandler("status",   status_cmd))
+    app.add_handler(CommandHandler("signal",   signal_cmd))
+    app.add_handler(CommandHandler("auto",     auto_cmd))
+    app.add_handler(CommandHandler("stopauto", stopauto_cmd))
+    app.add_handler(CommandHandler("login",    show_login))
+    app.add_handler(CommandHandler("menu",     start))
 
     app.add_handler(CallbackQueryHandler(show_login,   pattern="^menu_login$"))
     app.add_handler(CallbackQueryHandler(ask_email,    pattern="^login_email$"))
