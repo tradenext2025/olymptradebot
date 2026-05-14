@@ -169,3 +169,51 @@ def home_keyboard(lang="en"):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"🏠 {t(lang,'home')}", callback_data="menu_home")],
     ])
+
+# ── TRADE HISTORY KEYBOARD ────────────────────────────────────────────────────
+def history_keyboard(lang="en"):
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📊 Win Rate",      callback_data="history_winrate"),
+            InlineKeyboardButton("🔄 Refresh",        callback_data="history_refresh"),
+        ],
+        [
+            InlineKeyboardButton("✅ Mark WIN",       callback_data="history_win"),
+            InlineKeyboardButton("❌ Mark LOSS",      callback_data="history_loss"),
+        ],
+        [
+            InlineKeyboardButton("🗑 Clear History",  callback_data="history_clear"),
+            InlineKeyboardButton(f"🏠 Home",          callback_data="menu_home"),
+        ],
+    ])
+
+# ── SIGNAL RESULT WITH MARK ───────────────────────────────────────────────────
+def signal_result_with_mark_keyboard(asset, tf, duration, trade_id, lang="en"):
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ WIN",   callback_data=f"mark_win_{trade_id}"),
+            InlineKeyboardButton("❌ LOSS",  callback_data=f"mark_loss_{trade_id}"),
+        ],
+        [
+            InlineKeyboardButton("🔄 New Signal",   callback_data=f"dur_{asset}|{tf}|{duration}"),
+            InlineKeyboardButton("⏱ Change Timer",  callback_data=f"tf_{asset}|{tf}"),
+        ],
+        [
+            InlineKeyboardButton("💼 Change Asset",  callback_data="back_categories"),
+            InlineKeyboardButton("✅ Confirm Trade",  callback_data=f"trade_{asset}|{tf}|{duration}"),
+        ],
+        [
+            InlineKeyboardButton("🏠 Home",          callback_data="menu_home"),
+        ],
+    ])
+
+# ── UPDATED ACCOUNT KEYBOARD ──────────────────────────────────────────────────
+def account_keyboard_full(lang="en"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔐 Login OlympTrade",   callback_data="menu_login")],
+        [InlineKeyboardButton("💰 Check Balance",      callback_data="account_balance")],
+        [InlineKeyboardButton("📊 Trade History",      callback_data="account_history")],
+        [InlineKeyboardButton("📈 Win Rate",           callback_data="account_winrate")],
+        [InlineKeyboardButton("🔓 Logout",             callback_data="account_logout")],
+        [InlineKeyboardButton(f"🏠 Home",              callback_data="menu_home")],
+    ])
