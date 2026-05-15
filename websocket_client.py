@@ -1,9 +1,7 @@
-import json
+# ─── REAL OLYMPTRADE PRICE FEED (Selenium on Railway) ─────────────────────────
 import threading
 import time
-import ssl
-import websocket
-import urllib.request
+import json
 from config import OLYMP_TOKEN, BASE_PRICES
 
 live_prices    = {}
@@ -49,144 +47,173 @@ def get_ws_status():
 def get_candle_history(asset, n=60):
     return candle_history.get(asset, [])[-n:]
 
-def on_open(ws):
-    global ws_connected
-    ws_connected = True
-    print("WebSocket connected to OlympTrade!")
+def get_smart_price(asset):
+    real = live_prices.get(asset)
+    if real:
+        return real, True
+    return BASE_PRICES.get(asset, 1.0), False
 
-    # Step 1: Authenticate with token
-    ws.send(json.dumps({
-        "action": "setToken",
-        "message": {
-            "token": OLYMP_TOKEN
-        }
-    }))
-    time.sleep(1)
+def _add_candle(asset, open_, close, high, low, volume=0):
+    if asset not in candle_history:
+        candle_history[asset] = []
+    candle_history[asset].append({
+        "open": float(open_), "close": float(close),
+        "high": float(high),  "low":   float(low),
+        "volume": int(volume),
+    })
+    if len(candle_history[asset]) > 300:
+        candle_history[asset] = candle_history[asset][-300:]
 
-    # Step 2: Subscribe to candles for each asset
-    for asset_name, symbol in SYMBOL_MAP.items():
+# ── SELENIUM PRICE FETCHER ────────────────────────────────────────────────────
+def _selenium_loop():
+    global ws_connected, live_prices
+    while True:
         try:
-            # Subscribe to 5s candles
-            ws.send(json.dumps({
-                "action": "subscribeCandle",
-                "message": {
-                    "instrument": symbol,
-                    "duration":   5
-                }
-            }))
-            time.sleep(0.1)
-        except Exception as e:
-            print(f"Subscribe error {symbol}: {e}")
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.chrome.service import Service
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
 
-    print("Subscribed to all OTC assets!")
+            print("Starting Selenium Chrome...")
+            options = Options()
+            options.add_argument("--headless")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--window-size=1920,1080")
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
-def on_message(ws, message):
-    global live_prices, candle_history
-    try:
-        data = json.loads(message)
+            driver = webdriver.Chrome(options=options)
 
-        # Handle different message formats
-        action = data.get("action", "")
-        msg    = data.get("message", {})
+            # Login to OlympTrade
+            print("Opening OlympTrade...")
+            driver.get("https://olymptrade.com/platform")
+            time.sleep(3)
 
-        # Format 1: candle update
-        if action == "candle" or action == "candle-created":
-            symbol = msg.get("instrument", "")
-            asset  = REVERSE_MAP.get(symbol, "")
-            if asset and msg.get("close"):
-                price = float(msg["close"])
-                live_prices[asset] = price
-                _add_candle(asset, msg)
-
-        # Format 2: tick/quote
-        elif action in ["tick", "quote", "price-changed"]:
-            symbol = msg.get("instrument", "") or msg.get("symbol", "")
-            asset  = REVERSE_MAP.get(symbol, "")
-            price  = msg.get("close") or msg.get("price") or msg.get("ask")
-            if asset and price:
-                live_prices[asset] = float(price)
-
-        # Format 3: nested data array
-        elif "data" in data:
-            items = data["data"]
-            if isinstance(items, list):
-                for item in items:
-                    symbol = item.get("instrument", "")
-                    asset  = REVERSE_MAP.get(symbol, "")
-                    price  = item.get("close") or item.get("price")
-                    if asset and price:
-                        live_prices[asset] = float(price)
-                        _add_candle(asset, item)
-
-        # Format 4: direct price message
-        elif "instrument" in msg and "close" in msg:
-            symbol = msg["instrument"]
-            asset  = REVERSE_MAP.get(symbol, "")
-            if asset:
-                live_prices[asset] = float(msg["close"])
-                _add_candle(asset, msg)
-
-    except Exception as e:
-        pass
-
-def _add_candle(asset, msg):
-    global candle_history
-    try:
-        close = float(msg.get("close", 0))
-        if close <= 0:
-            return
-        candle = {
-            "open":   float(msg.get("open",   close)),
-            "close":  close,
-            "high":   float(msg.get("high",   close)),
-            "low":    float(msg.get("low",    close)),
-            "volume": int(msg.get("volume",   0)),
-        }
-        if asset not in candle_history:
-            candle_history[asset] = []
-        candle_history[asset].append(candle)
-        if len(candle_history[asset]) > 200:
-            candle_history[asset] = candle_history[asset][-200:]
-    except:
-        pass
-
-def on_error(ws, error):
-    global ws_connected
-    ws_connected = False
-    print(f"WebSocket error: {error}")
-
-def on_close(ws, code, msg):
-    global ws_connected
-    ws_connected = False
-    print(f"WebSocket closed: {code}")
-
-def start_websocket():
-    def run():
-        while True:
-            try:
-                print("Connecting to OlympTrade WebSocket...")
-                ws = websocket.WebSocketApp(
-                    "wss://ws.olymptrade.com/",
-                    header={
-                        "Cookie":        f"access_token={OLYMP_TOKEN}",
-                        "Authorization": f"Bearer {OLYMP_TOKEN}",
-                        "Origin":        "https://olymptrade.com",
-                    },
-                    on_open=on_open,
-                    on_message=on_message,
-                    on_error=on_error,
-                    on_close=on_close,
-                )
-                ws.run_forever(
-                    sslopt={"cert_reqs": ssl.CERT_NONE},
-                    ping_interval=20,
-                    ping_timeout=10
-                )
-            except Exception as e:
-                print(f"WebSocket crashed: {e}")
-            print("Reconnecting in 5 seconds...")
+            # Inject access token as cookie
+            driver.add_cookie({
+                "name":   "access_token",
+                "value":  OLYMP_TOKEN,
+                "domain": ".olymptrade.com",
+                "path":   "/",
+            })
+            driver.refresh()
             time.sleep(5)
 
-    t = threading.Thread(target=run, daemon=True)
+            print("Logged into OlympTrade via Selenium!")
+            ws_connected = True
+
+            # Inject WebSocket interceptor
+            ws_script = """
+            window._prices = {};
+            window._candles = {};
+
+            const OrigWS = window.WebSocket;
+            function PatchedWS(url, protocols) {
+                const ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
+                ws.addEventListener('message', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        const action = data.action || '';
+                        const msg = data.message || {};
+
+                        if (action === 'candle' || action === 'candle-created') {
+                            const sym = msg.instrument || '';
+                            const close = msg.close;
+                            if (sym && close) {
+                                window._prices[sym] = parseFloat(close);
+                                if (!window._candles[sym]) window._candles[sym] = [];
+                                window._candles[sym].push({
+                                    open: parseFloat(msg.open || close),
+                                    close: parseFloat(close),
+                                    high: parseFloat(msg.high || close),
+                                    low: parseFloat(msg.low || close),
+                                    volume: parseInt(msg.volume || 0)
+                                });
+                                if (window._candles[sym].length > 200)
+                                    window._candles[sym] = window._candles[sym].slice(-200);
+                            }
+                        }
+
+                        if (action === 'tick' || action === 'quote') {
+                            const sym = msg.instrument || msg.symbol || '';
+                            const price = msg.close || msg.price || msg.ask;
+                            if (sym && price) {
+                                window._prices[sym] = parseFloat(price);
+                            }
+                        }
+
+                        // Handle array data
+                        if (data.d && Array.isArray(data.d)) {
+                            data.d.forEach(function(item) {
+                                const sym = item.p || item.instrument || '';
+                                const price = item.q || item.close || item.price;
+                                if (sym && price) window._prices[sym] = parseFloat(price);
+                            });
+                        }
+                    } catch(e) {}
+                });
+                return ws;
+            }
+            PatchedWS.prototype = OrigWS.prototype;
+            window.WebSocket = PatchedWS;
+            console.log('WebSocket interceptor injected!');
+            """
+            driver.execute_script(ws_script)
+            print("WebSocket interceptor injected!")
+            time.sleep(5)
+
+            # Poll prices every 2 seconds
+            while True:
+                try:
+                    prices_js = driver.execute_script("return JSON.stringify(window._prices || {})")
+                    candles_js = driver.execute_script("return JSON.stringify(window._candles || {})")
+
+                    if prices_js:
+                        raw_prices = json.loads(prices_js)
+                        for symbol, price in raw_prices.items():
+                            asset = REVERSE_MAP.get(symbol, symbol)
+                            live_prices[asset] = float(price)
+
+                    if candles_js:
+                        raw_candles = json.loads(candles_js)
+                        for symbol, candles in raw_candles.items():
+                            asset = REVERSE_MAP.get(symbol, symbol)
+                            candle_history[asset] = candles
+
+                    if live_prices:
+                        ws_connected = True
+
+                except Exception as e:
+                    print(f"Price poll error: {e}")
+
+                time.sleep(2)
+
+        except ImportError:
+            print("Selenium not installed!")
+            ws_connected = False
+            time.sleep(30)
+        except Exception as e:
+            print(f"Selenium error: {e}")
+            ws_connected = False
+            time.sleep(10)
+
+def start_websocket():
+    t = threading.Thread(target=_selenium_loop, daemon=True)
     t.start()
-    print("WebSocket thread started!")
+    print("Selenium price feed thread started!")
+
+# Railway Chrome path helper
+def get_chrome_options():
+    from selenium.webdriver.chrome.options import Options
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.binary_location = "/usr/bin/chromium"
+    return options

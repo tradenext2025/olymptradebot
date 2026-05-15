@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["python312", "chromium", "chromedriver"]
+
+[start]
+cmd = "python3 main.py"
