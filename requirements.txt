@@ -1,6 +1,5 @@
 python-telegram-bot==22.7
-selenium==4.18.1
-webdriver-manager==4.0.1
+olymptrade-api
 pillow==12.2.0
 pandas==3.0.3
 numpy==2.4.4
