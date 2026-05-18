@@ -1,8 +1,8 @@
-# ─── REAL OLYMPTRADE PRICES using olymptrade_ws library ───────────────────────
+# ─── REAL OLYMPTRADE PRICES ────────────────────────────────────────────────────
 import asyncio
 import threading
 import time
-from config import OLYMP_TOKEN, BASE_PRICES
+from config import BASE_PRICES
 
 live_prices    = {}
 candle_history = {}
@@ -67,41 +67,41 @@ def _add_candle(asset, open_, close, high, low, volume=0):
     if len(candle_history[asset]) > 300:
         candle_history[asset] = candle_history[asset][-300:]
 
-# ── ASYNC PRICE LOOP ──────────────────────────────────────────────────────────
 async def _run_client():
-    global ws_connected, live_prices, _client
+    global ws_connected, _client
     while True:
         try:
             from olymptrade_ws import OlympTradeClient
             from olympconfig import parameters
+            from auth import get_valid_token
 
-            print("Connecting to OlympTrade real price feed...")
-            _client = OlympTradeClient(access_token=OLYMP_TOKEN)
+            token = get_valid_token()
+            if not token:
+                print("No token available - waiting 30s...")
+                await asyncio.sleep(30)
+                continue
 
-            # ── Tick callback ─────────────────────────────────────────────────
+            print(f"Connecting with token: {token[:20]}...")
+            _client = OlympTradeClient(access_token=token)
+
             async def on_tick(message):
                 try:
-                    ticks = message.get("d", [])
-                    for tick in ticks:
+                    for tick in message.get("d", []):
                         pair  = tick.get("p", "")
                         price = tick.get("q")
-                        ts    = tick.get("t", 0)
                         if pair and price:
-                            asset = REVERSE_MAP.get(pair, None)
+                            asset = REVERSE_MAP.get(pair)
                             if asset:
-                                p = float(price)
-                                live_prices[asset] = p
-                                _add_candle(asset, p, p, p, p)
+                                live_prices[asset] = float(price)
+                                _add_candle(asset, price, price, price, price)
                 except Exception as e:
                     print(f"Tick error: {e}")
 
-            # ── Candle callback ───────────────────────────────────────────────
             async def on_candle(message):
                 try:
-                    candles = message.get("d", [])
-                    for c in candles:
-                        pair = c.get("p", "")
-                        asset = REVERSE_MAP.get(pair, None)
+                    for c in message.get("d", []):
+                        pair  = c.get("p", "")
+                        asset = REVERSE_MAP.get(pair)
                         if asset and c.get("c"):
                             live_prices[asset] = float(c["c"])
                             _add_candle(
@@ -122,39 +122,39 @@ async def _run_client():
 
             if _client.is_connected:
                 ws_connected = True
-                print("✅ Connected to OlympTrade real prices!")
+                print("✅ WebSocket connected - real prices live!")
 
-                # Subscribe to all assets
                 for asset_name, symbol in SYMBOL_MAP.items():
                     try:
                         await _client.market.subscribe_ticks(symbol)
                         await asyncio.sleep(0.05)
-                    except Exception as e:
-                        print(f"Subscribe error {symbol}: {e}")
+                    except:
+                        pass
 
                 print(f"✅ Subscribed to {len(SYMBOL_MAP)} assets!")
 
-                # Keep alive — check connection
                 while _client.is_connected:
                     await asyncio.sleep(5)
 
                 ws_connected = False
-                print("WebSocket disconnected — reconnecting...")
-
+                print("WebSocket disconnected - reconnecting...")
             else:
-                print("❌ Failed to connect to OlympTrade")
+                print("❌ Connection failed - getting new token...")
                 ws_connected = False
+                # Force token refresh
+                try:
+                    from config import ADMIN_EMAIL, ADMIN_PASSWORD
+                    from auth import selenium_login
+                    selenium_login(ADMIN_EMAIL, ADMIN_PASSWORD)
+                except:
+                    pass
+                await asyncio.sleep(15)
 
-        except ImportError:
-            print("olymptrade_ws not installed — install with: pip install olymptrade-api")
-            ws_connected = False
-            await asyncio.sleep(30)
         except Exception as e:
-            print(f"Price feed error: {e}")
+            print(f"WebSocket error: {e}")
             ws_connected = False
             await asyncio.sleep(10)
 
-# ── START IN BACKGROUND THREAD ────────────────────────────────────────────────
 def start_websocket():
     def run():
         loop = asyncio.new_event_loop()
